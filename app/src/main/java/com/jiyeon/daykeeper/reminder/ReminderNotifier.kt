@@ -57,7 +57,11 @@ object ReminderNotifier {
             .setContentIntent(openTimelineIntent(context, item.id))
             .build()
 
-        NotificationManagerCompat.from(context).notify(item.id.toInt(), notification)
+        try {
+            NotificationManagerCompat.from(context).notify(item.id.toInt(), notification)
+        } catch (e: SecurityException) {
+            // Quyền POST_NOTIFICATIONS có thể bị thu hồi giữa lúc kiểm tra và lúc hiển thị.
+        }
     }
 
     /** Mở app về Timeline của ngày liên quan (ngày báo = hôm nay). */

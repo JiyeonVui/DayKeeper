@@ -33,14 +33,24 @@ class ReminderScheduler(
         }
 
         val pendingIntent = buildPendingIntent(item.id)
-        if (canScheduleExact()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pendingIntent)
-        } else {
+        // Chỉ đặt báo chính xác khi còn quyền; quyền có thể bị thu hồi giữa lúc
+        // kiểm tra và lúc gọi nên vẫn bắt SecurityException và hạ xuống báo gần đúng.
+        val scheduledExact = canScheduleExact() && trySetExact(fireAt, pendingIntent)
+        if (!scheduledExact) {
             // Thiếu quyền báo thức chính xác (API 31+): hạ xuống báo gần đúng để
             // không crash; người dùng được hướng tới Cài đặt ở tầng UI.
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pendingIntent)
         }
     }
+
+    /** Cố đặt báo chính xác; trả về false nếu bị từ chối quyền (SecurityException). */
+    private fun trySetExact(fireAt: Long, pendingIntent: PendingIntent): Boolean =
+        try {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pendingIntent)
+            true
+        } catch (e: SecurityException) {
+            false
+        }
 
     override fun cancel(itemId: Long) {
         val pendingIntent = buildPendingIntent(itemId)
