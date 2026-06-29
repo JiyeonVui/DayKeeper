@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jiyeon.daykeeper.data.ScheduleRepository
-import com.jiyeon.daykeeper.data.local.AppDatabase
 import com.jiyeon.daykeeper.reminder.ReminderNotifier
 import com.jiyeon.daykeeper.reminder.ReminderPermissions
 import com.jiyeon.daykeeper.reminder.ReminderScheduler
@@ -41,8 +40,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Dựng dependency thủ công (sau này thay bằng Hilt).
-        val db = AppDatabase.get(applicationContext)
-        val repo = ScheduleRepository(db.scheduleDao())
+        val repo = ScheduleRepository.get(applicationContext)
         val scheduler = ReminderScheduler(applicationContext, repo)
         val coordinator = ScheduleCoordinator(repo, scheduler)
         val factory = TimelineViewModelFactory(repo, coordinator)

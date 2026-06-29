@@ -3,6 +3,7 @@ package com.jiyeon.daykeeper.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.jiyeon.daykeeper.data.ScheduleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -12,6 +13,8 @@ import kotlinx.coroutines.launch
  * → hiển thị thông báo → lập lịch cho lần kế tiếp của chính item đó (mô hình tự-lặp).
  *
  * Dùng [goAsync] để được phép đọc DB ngoài luồng chính trước khi receiver kết thúc.
+ * Receiver do hệ thống khởi tạo (constructor rỗng) nên lấy repo dùng chung qua
+ * [ScheduleRepository.get] — DI thủ công, không Hilt.
  */
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -24,7 +27,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val appContext = context.applicationContext
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val repo = ReminderGraph.repository(appContext)
+                val repo = ScheduleRepository.get(appContext)
                 val item = repo.getById(itemId) ?: return@launch
                 ReminderNotifier.show(appContext, item)
                 ReminderScheduler(appContext, repo).schedule(item)
