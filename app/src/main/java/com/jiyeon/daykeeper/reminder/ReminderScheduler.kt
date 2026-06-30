@@ -3,7 +3,6 @@ package com.jiyeon.daykeeper.reminder
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import com.jiyeon.daykeeper.data.ScheduleRepository
 import com.jiyeon.daykeeper.data.local.ScheduleItem
@@ -62,18 +61,8 @@ class ReminderScheduler(
         repo.getAllOnce().forEach { schedule(it) }
     }
 
-    private fun buildPendingIntent(itemId: Long): PendingIntent {
-        val intent = Intent(appContext, AlarmReceiver::class.java).apply {
-            action = AlarmReceiver.ACTION_FIRE
-            putExtra(AlarmReceiver.EXTRA_ITEM_ID, itemId)
-        }
-        return PendingIntent.getBroadcast(
-            appContext,
-            itemId.toInt(),
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-    }
+    private fun buildPendingIntent(itemId: Long): PendingIntent =
+        AlarmReceiver.firePendingIntent(appContext, itemId)
 
     private fun canScheduleExact(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

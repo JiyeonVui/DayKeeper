@@ -11,7 +11,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jiyeon.daykeeper.data.ActivityLogRepository
 import com.jiyeon.daykeeper.data.ScheduleRepository
+import com.jiyeon.daykeeper.data.local.ActivityLog
+import com.jiyeon.daykeeper.data.local.ActivityLogDao
 import com.jiyeon.daykeeper.data.local.ScheduleDao
 import com.jiyeon.daykeeper.data.local.ScheduleItem
 import com.jiyeon.daykeeper.reminder.NoopScheduler
@@ -20,6 +24,8 @@ import com.jiyeon.daykeeper.ui.addedit.AddEditHost
 import com.jiyeon.daykeeper.ui.addedit.AddEditViewModelFactory
 import com.jiyeon.daykeeper.ui.settings.SettingsScreen
 import com.jiyeon.daykeeper.ui.summary.SummaryScreen
+import com.jiyeon.daykeeper.ui.summary.SummaryViewModel
+import com.jiyeon.daykeeper.ui.summary.SummaryViewModelFactory
 import com.jiyeon.daykeeper.ui.theme.DayKeeperTheme
 import com.jiyeon.daykeeper.ui.timeline.TimelineScreen
 import com.jiyeon.daykeeper.ui.timeline.TimelineViewModel
@@ -30,6 +36,7 @@ import kotlinx.coroutines.flow.flowOf
 fun MainScreen(
     timelineViewModel: TimelineViewModel,
     addEditViewModelFactory: AddEditViewModelFactory,
+    summaryViewModelFactory: SummaryViewModelFactory,
 ) {
     var showAddEdit by remember { mutableStateOf(false) }
     var editingItemId by remember { mutableStateOf<Long?>(null) }
@@ -46,6 +53,7 @@ fun MainScreen(
     } else {
         MainPager(
             timelineViewModel = timelineViewModel,
+            summaryViewModelFactory = summaryViewModelFactory,
             onAddClick = {
                 editingItemId = null
                 showAddEdit = true
@@ -61,6 +69,7 @@ fun MainScreen(
 @Composable
 fun MainPager(
     timelineViewModel: TimelineViewModel,
+    summaryViewModelFactory: SummaryViewModelFactory,
     onAddClick: () -> Unit,
     onItemClick: (Long) -> Unit
 ) {
@@ -76,8 +85,18 @@ fun MainPager(
                 onAddClick = onAddClick,
                 onItemClick = onItemClick
             )
-            1 -> SummaryScreen()
-            2 -> SettingsScreen()
+            1 -> SummaryScreen(
+                viewModel = viewModel<SummaryViewModel>(factory = summaryViewModelFactory),
+            )
+            2 -> SettingsScreen(
+                leadTime = "10 phút", onPickLeadTime = {},
+                alarmStyle = "Kêu to", onPickAlarmStyle = {},
+                sound = "Mặc định", onPickSound = {},
+                vibration = true, onVibrationChange = {},
+                reportEnabled = true, onReportEnabledChange = {},
+                reportTime = "Thứ Hai, 8:00", onPickReportTime = {},
+                onNavTimeline = {}, onNavSummary = {},
+            )
         }
     }
 }
@@ -95,6 +114,11 @@ private class PreviewScheduleDao : ScheduleDao {
     override suspend fun deleteById(id: Long) = Unit
 }
 
+private class PreviewActivityLogDao : ActivityLogDao {
+    override suspend fun upsert(log: ActivityLog) = Unit
+    override fun observeBetween(start: Long, end: Long): Flow<List<ActivityLog>> = flowOf(emptyList())
+}
+
 @Preview(
     name = "MainScreen - pager",
     showBackground = true,
@@ -105,10 +129,12 @@ private class PreviewScheduleDao : ScheduleDao {
 private fun MainScreenPreview() {
     val repo = ScheduleRepository(PreviewScheduleDao())
     val coordinator = ScheduleCoordinator(repo, NoopScheduler)
+    val logRepo = ActivityLogRepository(PreviewActivityLogDao())
     DayKeeperTheme(dynamicColor = false) {
         MainScreen(
             timelineViewModel = TimelineViewModel(repo, coordinator),
             addEditViewModelFactory = AddEditViewModelFactory(repo, coordinator),
+            summaryViewModelFactory = SummaryViewModelFactory(logRepo),
         )
     }
 }

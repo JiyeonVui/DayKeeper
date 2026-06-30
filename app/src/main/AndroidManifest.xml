@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Báo thức toàn màn hình (đè màn khoá) + rung liên tục. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -31,6 +34,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Màn báo thức toàn màn hình: mở qua fullScreenIntent, hiện đè màn khoá.
+             Task riêng (taskAffinity rỗng) + không vào Recents để tách khỏi app. -->
+        <activity
+            android:name=".reminder.AlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.DayKeeper" />
 
         <!-- Nhận báo thức nhắc nhở (nội bộ app). -->
         <receiver

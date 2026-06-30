@@ -6,10 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [ScheduleItem::class], version = 2, exportSchema = false)
+@Database(
+    entities = [ScheduleItem::class, ActivityLog::class],
+    version = 3,
+    exportSchema = false,
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scheduleDao(): ScheduleDao
+    abstract fun activityLogDao(): ActivityLogDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

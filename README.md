@@ -14,8 +14,13 @@ Giao diện và toàn bộ chuỗi hiển thị bằng **tiếng Việt**.
   giờ bắt đầu–kết thúc (bộ chọn giờ làm tròn 5 phút), ngày lặp, bật nhắc, ghi chú.
 - ⚠️ **Phát hiện trùng giờ** — chặn lưu khi đụng giờ với hoạt động khác trên ngày chung,
   hiện rõ hoạt động bị đụng và các ngày trùng.
-- 🔔 **Nhắc nhở** — thông báo đúng giờ bắt đầu, trên mọi ngày hoạt động lặp lại
-  (dùng `AlarmManager` báo thức chính xác, tự lập lịch lại sau khi máy khởi động lại).
+- 🔔 **Báo thức toàn màn hình** — đúng giờ bắt đầu, mở màn báo đè màn khoá, kêu chuông +
+  rung liên tục (dùng `AlarmManager` báo thức chính xác + fullScreenIntent, tự lập lịch lại
+  sau khi máy khởi động lại).
+- 📊 **Báo cáo tuần** — bấm "Tắt" (bỏ qua) / "Thực hiện" (đã làm) trên màn báo; trạng thái
+  ghi theo từng lần xảy ra và tổng hợp tỉ lệ hoàn thành + phân tích theo loại ở màn Summary.
+
+> Chi tiết hai tính năng này: [`docs/full-screen-alarm-and-weekly-report.md`](docs/full-screen-alarm-and-weekly-report.md).
 
 ## Công nghệ
 
@@ -41,9 +46,11 @@ ui (Compose)  →  ViewModel  →  ScheduleCoordinator / ScheduleRepository  →
                                 ReminderScheduler (AlarmManager)
 ```
 
-- **`data/`** — Room entity `ScheduleItem`, DAO, `ScheduleRepository`, `ConflictChecker`.
+- **`data/`** — Room entity `ScheduleItem` & `ActivityLog`, DAO, `ScheduleRepository`,
+  `ActivityLogRepository`, `ConflictChecker`.
 - **`reminder/`** — `NextOccurrence` (hàm thuần tính lần báo kế tiếp), `ReminderScheduler`,
-  `AlarmReceiver`, `BootReceiver`, `ReminderNotifier`, `ScheduleCoordinator`.
+  `AlarmReceiver`, `BootReceiver`, `ReminderNotifier`, `ScheduleCoordinator`,
+  `AlarmActivity` (màn báo toàn màn hình), `AlarmSoundPlayer` (chuông + rung).
 - **`ui/`** — màn hình & component Compose (timeline, addedit, settings, summary, theme).
 
 Quy ước dữ liệu đáng chú ý:
@@ -71,6 +78,9 @@ Hoặc mở thư mục bằng Android Studio rồi Run cấu hình `app`.
 - `POST_NOTIFICATIONS` (Android 13+) — xin runtime khi mở app.
 - `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` — để nhắc đúng giờ; Android 12+ có thể cần
   cấp trong Cài đặt (app sẽ hướng dẫn nếu thiếu).
+- `USE_FULL_SCREEN_INTENT` — mở màn báo thức đè màn khoá; Android 14+ cần cấp trong
+  Cài đặt cho app không phải đồng hồ/gọi điện (app sẽ hướng dẫn nếu thiếu).
+- `VIBRATE` — rung khi báo thức.
 - `RECEIVE_BOOT_COMPLETED` — lập lại lịch nhắc sau khi khởi động lại máy.
 
 ## Cấu trúc thư mục (rút gọn)
@@ -86,5 +96,5 @@ app/src/main/java/com/jiyeon/daykeeper/
 
 ## Trạng thái
 
-- ✅ Timeline, Thêm/Sửa, phát hiện trùng giờ, nhắc nhở: đã hoạt động.
-- 🚧 Màn hình **Summary** và **Settings** còn là placeholder.
+- ✅ Timeline, Thêm/Sửa, phát hiện trùng giờ, báo thức toàn màn hình, Báo cáo tuần: đã hoạt động.
+- 🚧 Màn hình **Settings** còn là placeholder (các tuỳ chọn chưa nối vào logic).

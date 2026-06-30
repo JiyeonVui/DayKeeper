@@ -5,21 +5,20 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.jiyeon.daykeeper.MainActivity
 import com.jiyeon.daykeeper.R
 import com.jiyeon.daykeeper.data.local.ScheduleItem
-import com.jiyeon.daykeeper.data.local.todayBit
 import com.jiyeon.daykeeper.util.toHourMinute
 
 /**
- * Tạo kênh thông báo (API 26+) và hiển thị thông báo nhắc nhở. Toàn bộ chuỗi
- * hiển thị bằng tiếng Việt, đồng nhất với phần còn lại của app.
+ * Tạo kênh thông báo (API 26+) và bắn thông báo báo thức toàn màn hình cho mỗi
+ * nhắc nhở. Thông báo mang theo fullScreenIntent trỏ tới [AlarmActivity] nên khi
+ * màn hình tắt/khoá, hệ thống mở thẳng màn báo thức (kêu + rung liên tục). Toàn bộ
+ * chuỗi hiển thị bằng tiếng Việt, đồng nhất với phần còn lại của app.
  */
 object ReminderNotifier {
 
@@ -27,16 +26,25 @@ object ReminderNotifier {
     const val EXTRA_DAY_BIT = "extra_day_bit"
 
     private const val CHANNEL_NAME = "Nhắc nhở hoạt động"
-    private const val CHANNEL_DESC = "Thông báo khi một hoạt động bắt đầu"
+    private const val CHANNEL_DESC = "Báo thức khi một hoạt động bắt đầu"
 
-    /** Tạo notification channel một lần (idempotent). Không làm gì dưới API 26. */
+    /**
+     * Tạo notification channel một lần (idempotent). Không làm gì dưới API 26.
+     * Kênh để IMPORTANCE_HIGH (điều kiện để fullScreenIntent kích hoạt) nhưng tắt
+     * âm/rung — chuông & rung lặp liên tục do [AlarmSoundPlayer] trong [AlarmActivity]
+     * đảm nhận, tránh kêu hai lần.
+     */
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_HIGH,
-        ).apply { description = CHANNEL_DESC }
+        ).apply {
+            description = CHANNEL_DESC
+            setSound(null, null)
+            enableVibration(false)
+        }
         context.getSystemService(NotificationManager::class.java)
             .createNotificationChannel(channel)
     }
@@ -47,14 +55,17 @@ object ReminderNotifier {
         ensureChannel(context)
 
         val timeRange = "${item.startMinute.toHourMinute()} – ${item.endMinute.toHourMinute()}"
+        val alarmIntent = alarmPendingIntent(context, item)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(item.title)
             .setContentText("$timeRange · ${item.category.label}")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOngoing(true)
             .setAutoCancel(true)
-            .setContentIntent(openTimelineIntent(context, item.id))
+            .setContentIntent(alarmIntent)
+            .setFullScreenIntent(alarmIntent, true)
             .build()
 
         try {
@@ -64,19 +75,14 @@ object ReminderNotifier {
         }
     }
 
-    /** Mở app về Timeline của ngày liên quan (ngày báo = hôm nay). */
-    private fun openTimelineIntent(context: Context, itemId: Long): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_DAY_BIT, todayBit())
-        }
-        return PendingIntent.getActivity(
+    /** Mở màn báo thức toàn màn hình cho [item] (dùng cho content + fullScreen intent). */
+    private fun alarmPendingIntent(context: Context, item: ScheduleItem): PendingIntent =
+        PendingIntent.getActivity(
             context,
-            itemId.toInt(),
-            intent,
+            item.id.toInt(),
+            AlarmActivity.intent(context, item),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-    }
 
     private fun hasPostPermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true

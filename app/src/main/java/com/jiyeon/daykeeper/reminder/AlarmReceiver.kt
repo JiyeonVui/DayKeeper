@@ -1,5 +1,6 @@
 package com.jiyeon.daykeeper.reminder
 
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -41,5 +42,23 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_FIRE = "com.jiyeon.daykeeper.reminder.ACTION_FIRE"
         const val EXTRA_ITEM_ID = "extra_item_id"
         private const val INVALID_ID = -1L
+
+        /**
+         * PendingIntent báo thức của một item. requestCode = `itemId.toInt()` nên
+         * mọi lần đặt/huỷ (lập lịch, báo lại, xoá item) đều trỏ về đúng một báo
+         * thức. Dùng chung bởi [ReminderScheduler] để tránh lặp logic.
+         */
+        fun firePendingIntent(context: Context, itemId: Long): PendingIntent {
+            val intent = Intent(context, AlarmReceiver::class.java).apply {
+                action = ACTION_FIRE
+                putExtra(EXTRA_ITEM_ID, itemId)
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                itemId.toInt(),
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        }
     }
 }
