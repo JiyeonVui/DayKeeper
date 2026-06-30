@@ -31,7 +31,7 @@ Giao diện và toàn bộ chuỗi hiển thị bằng **tiếng Việt**.
 | Lưu trữ | Room 2.7.1 (KSP) |
 | Bất đồng bộ | Kotlin Coroutines + Flow |
 | Kiến trúc | MVVM + Repository + luồng dữ liệu một chiều (UDF) |
-| Nhắc nhở | `AlarmManager` (báo thức chính xác) + `BroadcastReceiver` |
+| Nhắc nhở | `AlarmManager` (báo thức chính xác) + `BroadcastReceiver` + foreground `Service` (chuông) |
 | Min / Target / Compile SDK | 24 / 36 / 36 |
 
 > Một số lựa chọn có chủ đích: **không dùng Hilt** (DI thủ công trong `MainActivity`),
@@ -50,7 +50,9 @@ ui (Compose)  →  ViewModel  →  ScheduleCoordinator / ScheduleRepository  →
   `ActivityLogRepository`, `ConflictChecker`.
 - **`reminder/`** — `NextOccurrence` (hàm thuần tính lần báo kế tiếp), `ReminderScheduler`,
   `AlarmReceiver`, `BootReceiver`, `ReminderNotifier`, `ScheduleCoordinator`,
-  `AlarmActivity` (màn báo toàn màn hình), `AlarmSoundPlayer` (chuông + rung).
+  `AlarmActivity` (màn báo toàn màn hình, chỉ là UI), `AlarmSoundService` (foreground
+  Service giữ chuông + rung + thông báo), `AlarmAudioController` + `ServiceAlarmAudioController`
+  (điều khiển âm báo qua DI thủ công).
 - **`ui/`** — màn hình & component Compose (timeline, addedit, settings, summary, theme).
 
 Quy ước dữ liệu đáng chú ý:
@@ -81,6 +83,8 @@ Hoặc mở thư mục bằng Android Studio rồi Run cấu hình `app`.
 - `USE_FULL_SCREEN_INTENT` — mở màn báo thức đè màn khoá; Android 14+ cần cấp trong
   Cài đặt cho app không phải đồng hồ/gọi điện (app sẽ hướng dẫn nếu thiếu).
 - `VIBRATE` — rung khi báo thức.
+- `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK` — giữ chuông báo kêu liên tục
+  bằng foreground Service, kể cả khi màn hình đang mở.
 - `RECEIVE_BOOT_COMPLETED` — lập lại lịch nhắc sau khi khởi động lại máy.
 
 ## Cấu trúc thư mục (rút gọn)

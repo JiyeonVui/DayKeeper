@@ -11,11 +11,12 @@ import kotlinx.coroutines.launch
 
 /**
  * Nhận báo thức khi một hoạt động bắt đầu: nạp lại item từ DB (lấy dữ liệu mới nhất)
- * → hiển thị thông báo → lập lịch cho lần kế tiếp của chính item đó (mô hình tự-lặp).
+ * → bật báo thức (foreground Service qua [AlarmAudioController]) → lập lịch cho lần
+ * kế tiếp của chính item đó (mô hình tự-lặp).
  *
  * Dùng [goAsync] để được phép đọc DB ngoài luồng chính trước khi receiver kết thúc.
- * Receiver do hệ thống khởi tạo (constructor rỗng) nên lấy repo dùng chung qua
- * [ScheduleRepository.get] — DI thủ công, không Hilt.
+ * Receiver do hệ thống khởi tạo (constructor rỗng) nên lấy phụ thuộc dùng chung qua
+ * service-locator ([ScheduleRepository.get], [AlarmAudio.controller]) — DI thủ công.
  */
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -30,7 +31,7 @@ class AlarmReceiver : BroadcastReceiver() {
             try {
                 val repo = ScheduleRepository.get(appContext)
                 val item = repo.getById(itemId) ?: return@launch
-                ReminderNotifier.show(appContext, item)
+                AlarmAudio.controller(appContext).start(item)
                 ReminderScheduler(appContext, repo).schedule(item)
             } finally {
                 pendingResult.finish()

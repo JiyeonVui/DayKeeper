@@ -13,46 +13,58 @@ Tài liệu mô tả hai thay đổi lớn:
 Khi đến giờ, `AlarmReceiver` đẩy **một notification thường** (`IMPORTANCE_HIGH`). Trên màn hình chỉ hiện banner/heads-up, kêu một nhịp âm thông báo rồi im — không phải báo thức thật.
 
 ### Bây giờ
-Đến giờ, hệ thống mở thẳng **màn báo thức toàn màn hình** đè lên màn khoá, bật sáng màn hình, **kêu chuông báo thức lặp vô hạn + rung liên tục** cho tới khi người dùng bấm nút.
+Đến giờ, một **foreground Service** ([`AlarmSoundService`]) bật lên giữ thông báo `fullScreenIntent` và **kêu chuông báo thức lặp vô hạn + rung liên tục** cho tới khi người dùng tắt — kêu **kể cả khi màn hình đang mở**. Màn `AlarmActivity` chỉ là **UI** đè lên màn khoá để bấm Tắt/Thực hiện.
 
-### Luồng hoạt động
+### Kiến trúc (foreground Service + DI thủ công)
+Âm thanh do **Service** sở hữu (một-instance do hệ thống quản lý), thay cho `object` global mutable state. Tầng nghiệp vụ gọi gián tiếp qua interface `AlarmAudioController`, lấy bản dùng chung qua service-locator `AlarmAudio.controller(context)` — đồng bộ với `ScheduleRepository.get` và cách `ReminderScheduling`/`NoopScheduler` tách khỏi AlarmManager.
+
 ```
 AlarmManager (setExactAndAllowWhileIdle, RTC_WAKEUP)
         │  đến giờ → đánh thức máy (kể cả app đã đóng / Doze)
         ▼
 AlarmReceiver.onReceive
-        │  nạp lại item từ DB → ReminderNotifier.show(...) → lập lịch lần kế tiếp
+        │  nạp lại item từ DB → AlarmAudio.controller(ctx).start(item) → lập lịch lần kế tiếp
         ▼
-ReminderNotifier  → notification kèm setFullScreenIntent(AlarmActivity)
-        │  màn tắt/khoá: hệ thống mở thẳng AlarmActivity
-        │  màn đang mở:  hiện heads-up, chạm để mở AlarmActivity
+ServiceAlarmAudioController
+        │  ReminderNotifier.buildAlarmNotification(item) → Notification
         ▼
-AlarmActivity  → AlarmSoundPlayer.start() (chuông lặp + rung)
-        │  hiện đè màn khoá, bật sáng màn hình
+AlarmSoundService (foreground, mediaPlayback)
+        │  startForeground(notification) + chuông lặp + rung  ← kêu cả khi màn hình mở
+        │  notification.fullScreenIntent → AlarmActivity
+        │     · màn tắt/khoá: hệ thống mở thẳng AlarmActivity
+        │     · màn đang mở:  hiện heads-up, chạm để mở AlarmActivity (chuông đã kêu sẵn)
         ▼
-Người dùng bấm "Tắt" hoặc "Thực hiện" → dừng chuông, huỷ notification, đóng màn
+AlarmActivity (chỉ là UI, đè màn khoá, bật sáng màn hình)
+        │  bấm "Tắt"/"Thực hiện" → AlarmAudio.controller(ctx).stop() + ghi log
+        ▼
+AlarmSoundService nhận ACTION_STOP → dừng chuông/rung, gỡ thông báo, stopSelf
 ```
 
 ### File liên quan
 
 | File | Vai trò |
 |------|---------|
-| `reminder/AlarmSoundPlayer.kt` *(mới)* | Phát chuông (`MediaPlayer`, `USAGE_ALARM`, looping) + rung (`Vibrator` waveform lặp). Là `object` giữ một nguồn phát duy nhất; `start()`/`stop()` idempotent. |
-| `reminder/AlarmActivity.kt` *(mới)* | Màn báo thức Compose, `setShowWhenLocked`/`setTurnScreenOn`, 2 nút **Tắt** / **Thực hiện**, tự dừng chuông + huỷ notification khi đóng. |
-| `reminder/ReminderNotifier.kt` | Đổi sang notification `setFullScreenIntent` + `CATEGORY_ALARM`; kênh để `IMPORTANCE_HIGH` nhưng **tắt âm/rung của kênh** (âm thanh do `AlarmActivity` lo, tránh kêu hai lần). |
-| `reminder/AlarmReceiver.kt` | Tách `firePendingIntent(context, itemId)` dùng chung (DRY). |
+| `reminder/AlarmSoundService.kt` *(mới)* | Foreground Service (`mediaPlayback`) giữ `MediaPlayer` (`USAGE_ALARM`, looping) + `Vibrator` waveform lặp và thông báo foreground; `START_NOT_STICKY`; `start()/stop()` gói sẵn intent. |
+| `reminder/AlarmAudioController.kt` *(mới)* | Interface `AlarmAudioController` + `NoopAlarmAudioController` (cho test/preview). |
+| `reminder/ServiceAlarmAudioController.kt` *(mới)* | Impl dựa trên Service + locator `AlarmAudio.controller(context)` (DI thủ công). |
+| `reminder/AlarmActivity.kt` *(mới)* | Màn báo thức Compose, `setShowWhenLocked`/`setTurnScreenOn`, 2 nút **Tắt** / **Thực hiện**; chỉ là UI — nút bấm gọi `controller.stop()` + ghi log. |
+| `reminder/ReminderNotifier.kt` | `buildAlarmNotification(item): Notification` (`setFullScreenIntent` + `CATEGORY_ALARM`) cho Service `startForeground`; kênh `IMPORTANCE_HIGH` nhưng **tắt âm/rung của kênh** (âm thanh do Service lo). |
+| `reminder/AlarmReceiver.kt` | Gọi `AlarmAudio.controller(ctx).start(item)`; tách `firePendingIntent(context, itemId)` dùng chung (DRY). |
 | `reminder/ReminderScheduler.kt` | Dùng `AlarmReceiver.firePendingIntent` thay cho việc tự dựng `PendingIntent`. |
 | `reminder/ReminderPermissions.kt` | Thêm `canUseFullScreenIntent()` + `openFullScreenIntentSettings()` (Android 14+). |
 | `MainActivity.kt` | Gọi `ensureFullScreenIntentPermission()` khi mở app. |
-| `AndroidManifest.xml` | Thêm quyền `USE_FULL_SCREEN_INTENT`, `VIBRATE`; khai báo `AlarmActivity` (task riêng, `showWhenLocked`, `turnScreenOn`, ngoài Recents). |
+| `AndroidManifest.xml` | Thêm quyền `USE_FULL_SCREEN_INTENT`, `VIBRATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`; khai báo `AlarmActivity` (task riêng, `showWhenLocked`, `turnScreenOn`, ngoài Recents) + `AlarmSoundService` (`foregroundServiceType="mediaPlayback"`). |
 
 ### Quyền
-- `USE_FULL_SCREEN_INTENT`, `VIBRATE`.
+- `USE_FULL_SCREEN_INTENT`, `VIBRATE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`.
 - **Android 14 (API 34)+**: quyền full-screen intent bị thu hồi mặc định cho app không phải đồng hồ/gọi điện. App sẽ Toast + mở Cài đặt để người dùng cấp; nếu không cấp thì nhắc nhở chỉ còn dạng heads-up.
+- Foreground Service được khởi từ `AlarmReceiver` (nền) nhờ ngoại lệ của báo thức chính xác (`USE_EXACT_ALARM`).
 
 ### Lưu ý / giới hạn
-- **Khi đang dùng máy (mở khoá)**: theo cơ chế Android, full-screen intent hiện dạng **heads-up**; chuông kêu liên tục khi người dùng **chạm vào** để mở màn báo. Khi màn tắt/khoá thì màn báo tự bung và kêu ngay.
-- Kênh thông báo cố ý **im lặng** để không kêu chồng với `AlarmSoundPlayer`.
+- **Chuông kêu liên tục cả khi màn hình đang mở** vì Service sở hữu âm thanh. Khi mở khoá, full-screen intent vẫn hiện dạng **heads-up** (chạm để mở màn báo) nhưng chuông đã kêu sẵn — khác với trước đây phải chạm mới kêu.
+- Báo **không tự dừng** khi UI bị đóng/đổi (chỉ dừng khi bấm Tắt/Thực hiện) — đúng kiểu báo thức thật.
+- Kênh thông báo cố ý **im lặng** để không kêu chồng với Service.
+- `foregroundServiceType="mediaPlayback"`: nếu lên Play Store có thể bị soi chính sách — cân nhắc `specialUse` kèm khai báo justification.
 - Toggle "Rung" trong Settings hiện vẫn là UI tĩnh (chưa nối vào logic); báo thức luôn rung.
 
 ---

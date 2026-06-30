@@ -13,6 +13,9 @@
     <!-- Báo thức toàn màn hình (đè màn khoá) + rung liên tục. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Foreground Service giữ chuông báo kêu liên tục, kể cả khi màn hình đang mở. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:allowBackup="true"
@@ -46,6 +49,12 @@
             android:turnScreenOn="true"
             android:taskAffinity=""
             android:theme="@style/Theme.DayKeeper" />
+
+        <!-- Foreground Service phát chuông + rung và giữ thông báo báo thức. -->
+        <service
+            android:name=".reminder.AlarmSoundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- Nhận báo thức nhắc nhở (nội bộ app). -->
         <receiver

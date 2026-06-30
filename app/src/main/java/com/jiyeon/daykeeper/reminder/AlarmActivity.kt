@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationManagerCompat
 import com.jiyeon.daykeeper.data.ActivityLogRepository
 import com.jiyeon.daykeeper.data.local.ActivityCategory
 import com.jiyeon.daykeeper.data.local.ActivityStatus
@@ -47,11 +46,11 @@ import java.time.LocalDate
 
 /**
  * Màn hình báo thức toàn màn hình: hiện đè lên màn khoá và bật sáng màn hình khi
- * nhắc nhở nổ, phát chuông + rung liên tục ([AlarmSoundPlayer]) cho tới khi người
- * dùng bấm **Tắt** (bỏ qua) hoặc **Thực hiện** (đã làm). Cả hai đều dừng báo và ghi
- * phản hồi cho lần xảy ra hôm đó vào [ActivityLogRepository] để dựng Báo cáo tuần.
- * Được khởi chạy qua fullScreenIntent của thông báo (xem [ReminderNotifier]) nên
- * hoạt động cả khi app đã đóng.
+ * nhắc nhở nổ. Chuông + rung do [AlarmSoundService] phát; màn này chỉ là UI — bấm
+ * **Tắt** (bỏ qua) hoặc **Thực hiện** (đã làm) sẽ dừng báo (qua [AlarmAudioController])
+ * và ghi phản hồi cho lần xảy ra hôm đó vào [ActivityLogRepository] để dựng Báo cáo
+ * tuần. Được khởi chạy qua fullScreenIntent của thông báo nên hoạt động cả khi app
+ * đã đóng.
  */
 class AlarmActivity : ComponentActivity() {
 
@@ -66,7 +65,6 @@ class AlarmActivity : ComponentActivity() {
         showOverLockScreen()
 
         alarm = AlarmContent.fromIntent(intent)
-        AlarmSoundPlayer.start(this)
 
         setContent {
             DayKeeperTheme {
@@ -79,23 +77,17 @@ class AlarmActivity : ComponentActivity() {
         }
     }
 
-    /** Báo thức kế tiếp nổ khi màn này đang hiện → cập nhật nội dung + chuông lại. */
+    /** Báo thức kế tiếp nổ khi màn này đang hiện → cập nhật nội dung hiển thị. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         alarm = AlarmContent.fromIntent(intent)
-        AlarmSoundPlayer.start(this)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        AlarmSoundPlayer.stop()
     }
 
     /** Ghi phản hồi [status] cho lần xảy ra hôm đó, dừng chuông và đóng màn báo. */
     private fun dismissWith(status: ActivityStatus) {
         recordStatus(status)
-        stopAlarm()
+        AlarmAudio.controller(this).stop()
         finish()
     }
 
@@ -106,11 +98,6 @@ class AlarmActivity : ComponentActivity() {
         logScope.launch {
             repo.log(content.itemId, content.epochDay, status, content.category)
         }
-    }
-
-    private fun stopAlarm() {
-        AlarmSoundPlayer.stop()
-        NotificationManagerCompat.from(this).cancel(alarm.itemId.toInt())
     }
 
     /** Đè lên màn khoá + bật sáng + giữ sáng trong khi báo. Hỗ trợ cả < API 27. */
